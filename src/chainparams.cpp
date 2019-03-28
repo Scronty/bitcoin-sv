@@ -171,20 +171,11 @@ public:
         // Note that of those with the service bits flag, most only support a
         // subset of possible options.
         // Bitcoin SV seeder
-        vSeeds.push_back(
-            CDNSSeedData("bitcoinsv.io", "seed.bitcoinsv.io", true));
-        // BU backed seeder
-        vSeeds.push_back(CDNSSeedData("bitcoinunlimited.info",
-                                      "btccash-seeder.bitcoinunlimited.info",
-                                      true));
-        // Bitprim
-        vSeeds.push_back(CDNSSeedData("bitprim.org", "seed.bitprim.org", true));
-        // Amaury SÉCHET
-        vSeeds.push_back(
-            CDNSSeedData("deadalnix.me", "seed.deadalnix.me", true));
-        // criptolayer.net
-        vSeeds.push_back(
-            CDNSSeedData("criptolayer.net", "seeder.criptolayer.net", true));
+        vSeeds.push_back(CDNSSeedData("bitcoinsv.io", "seed.bitcoinsv.io", true));
+        // cascharia.com
+        vSeeds.push_back(CDNSSeedData("cascharia.com", "seed.cascharia.com", true));
+        // satoshivision.network
+        vSeeds.push_back(CDNSSeedData("satoshivision.network", "seed.satoshisvision.network", true));
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<uint8_t>(1, 0);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<uint8_t>(1, 5);
@@ -253,6 +244,91 @@ public:
             3.2};
     }
 };
+
+/**
+ * Scaling test network
+ */
+class CStnParams : public CChainParams
+{
+public:
+    CStnParams()
+    {
+        strNetworkID = "stn";
+
+        std::vector<unsigned char> rawScript(ParseHex("76a914a123a6fdc265e1bbcf1123458891bd7af1a1b5d988ac"));
+        CScript outputScript(rawScript.begin(), rawScript.end());
+
+        genesis = CreateGenesisBlock(1296688602, 414098458, 0x1d00ffff, 1, 50 * COIN);
+        consensus.hashGenesisBlock = genesis.GetHash();
+        assert(consensus.hashGenesisBlock ==
+               uint256S("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526"
+                        "f8d77f4943"));
+
+        consensus.nSubsidyHalvingInterval = 210000;
+        consensus.BIP34Height = 100000000;
+        consensus.BIP34Hash = uint256();
+        consensus.powLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
+        consensus.nPowTargetSpacing = 10 * 60;
+        consensus.fPowAllowMinDifficultyBlocks = true;
+        consensus.fPowNoRetargeting = false;
+        consensus.nRuleChangeActivationThreshold = 1916; // 95% of 2016
+        consensus.nMinerConfirmationWindow = 144; // fast
+
+        // The best chain should have at least this much work.
+        consensus.nMinimumChainWork = uint256S("0x00");
+
+        // August 1, 2017 hard fork
+        consensus.uahfHeight = 15;
+
+        // November 13, 2017 hard fork
+        consensus.daaHeight = 2200;     // must be > 2016 - see assert in pow.cpp:268
+
+        // Nov 15, 2018 hard fork - modified to 2018-09-17 12:00
+        consensus.magneticAnomalyActivationTime = 1537358400;
+
+        /**
+         * The message start string is designed to be unlikely to occur in
+         * normal data. The characters are rarely used upper ASCII, not valid as
+         * UTF-8, and produce a large 32-bit integer with any alignment.
+         */
+        diskMagic[0] = 0xfb;
+        diskMagic[1] = 0xce;
+        diskMagic[2] = 0xc4;
+        diskMagic[3] = 0xf9;
+        netMagic[0] = 0xfb;
+        netMagic[1] = 0xce;
+        netMagic[2] = 0xc4;
+        netMagic[3] = 0xf9;
+        nDefaultPort = 9333;
+        nPruneAfterHeight = 1000;
+
+        vFixedSeeds.clear();
+        vSeeds.clear();
+        vSeeds.push_back(CDNSSeedData("bitcoinsv.io", "stn-seed.bitcoinsv.io", true));
+
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<uint8_t>(1, 111);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<uint8_t>(1, 196);
+        base58Prefixes[SECRET_KEY] = std::vector<uint8_t>(1, 239);
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
+        cashaddrPrefix = "bsvstn";
+
+        vFixedSeeds = std::vector<SeedSpec6>();
+
+        fMiningRequiresPeers = true;
+        fDefaultConsistencyChecks = false;
+        fRequireStandard = false;
+        fMineBlocksOnDemand = false;
+
+        checkpointData = {.mapCheckpoints = {
+                {0, uint256S("000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943")},
+                {1, uint256S("000000008908135d180edfe727f4e5dfaea25ed8d72337358d8362df7609b974")},
+                {2301, uint256S("00000000ff0ccf61bb239deb3998bd1a9c71d14c212c3fd58b32aae5ab6eaefb")},
+        }};
+    }
+};
+CStnParams stnParams;
 
 /**
  * Testnet (v3)
@@ -339,17 +415,8 @@ public:
         vSeeds.clear();
         // nodes with support for servicebits filtering should be at the top
         // Bitcoin SV seeder
-        vSeeds.push_back(CDNSSeedData("bitcoinsv.io",
-                                      "testnet-seed.bitcoinsv.io", true));
-        // Bitprim
-        vSeeds.push_back(
-            CDNSSeedData("bitprim.org", "testnet-seed.bitprim.org", true));
-        // Amaury SÉCHET
-        vSeeds.push_back(
-            CDNSSeedData("deadalnix.me", "testnet-seed.deadalnix.me", true));
-        // criptolayer.net
-        vSeeds.push_back(CDNSSeedData("criptolayer.net",
-                                      "testnet-seeder.criptolayer.net", true));
+        vSeeds.push_back(CDNSSeedData("bitcoinsv.io", "testnet-seed.bitcoinsv.io", true));
+        vSeeds.push_back(CDNSSeedData("cascharia.com", "testnet-seed.cascharia.com", true));
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<uint8_t>(1, 111);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<uint8_t>(1, 196);
@@ -500,6 +567,10 @@ std::unique_ptr<CChainParams> CreateChainParams(const std::string &chain) {
 
     if (chain == CBaseChainParams::REGTEST) {
         return std::unique_ptr<CChainParams>(new CRegTestParams());
+    }
+
+    if (chain == CBaseChainParams::STN) {
+        return std::unique_ptr<CChainParams>(new CStnParams());
     }
 
     throw std::runtime_error(

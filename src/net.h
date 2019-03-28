@@ -16,13 +16,18 @@
 #include "fs.h"
 #include "hash.h"
 #include "limitedmap.h"
+#include "mod_pri_queue.h"
 #include "netaddress.h"
 #include "protocol.h"
 #include "random.h"
 #include "streams.h"
 #include "sync.h"
+#include "task_helpers.h"
 #include "threadinterrupt.h"
+#include "txmempool.h"
+#include "txn_sending_details.h"
 #include "uint256.h"
+#include "validation.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -41,6 +46,9 @@ class CAddrMan;
 class Config;
 class CNode;
 class CScheduler;
+class CTxnPropagator;
+
+using CNodePtr = std::shared_ptr<CNode>;
 
 namespace boost {
 class thread_group;
@@ -163,40 +171,43 @@ public:
                                bool fAddnode = false);
     bool CheckIncomingNonce(uint64_t nonce);
 
-    bool ForNode(NodeId id, std::function<bool(CNode *pnode)> func);
+    bool ForNode(NodeId id, std::function<bool(const CNodePtr& pnode)> func);
 
-    void PushMessage(CNode *pnode, CSerializedNetMsg &&msg);
+    void PushMessage(const CNodePtr& pnode, CSerializedNetMsg &&msg);
 
-    template <typename Callable> void ForEachNode(Callable &&func) {
+    /** Enqueue a new transaction for later sending to our peers */
+    void EnqueueTransaction(const CTxnSendingDetails& txn);
+    /** Remove some transactions from our peers list of new transactions */
+    void DequeueTransactions(const std::vector<CTransactionRef>& txns);
+
+    /** Get a handle to our transaction propagator */
+    const std::shared_ptr<CTxnPropagator>& getTransactionPropagator() const { return mTxnPropagator; }
+
+    /** Call the specified function for each node */
+    template <typename Callable> void ForEachNode(Callable&& func) const {
         LOCK(cs_vNodes);
-        for (auto &&node : vNodes) {
-            if (NodeFullyConnected(node)) func(node);
+        for(const CNodePtr& node : vNodes) {
+            if(NodeFullyConnected(node))
+                func(node);
         }
     };
 
-    template <typename Callable> void ForEachNode(Callable &&func) const {
-        LOCK(cs_vNodes);
-        for (auto &&node : vNodes) {
-            if (NodeFullyConnected(node)) func(node);
-        }
-    };
+    /** Call the specified function for each node in parallel */
+    template <typename Callable>
+    auto ParallelForEachNode(Callable&& func)
+        -> std::vector<std::future<typename std::result_of<Callable(const CNodePtr&)>::type>>
+    {
+        using resultType = typename std::result_of<Callable(const CNodePtr&)>::type;
+        std::vector<std::future<resultType>> results {};
+        results.reserve(vNodes.size());
 
-    template <typename Callable, typename CallableAfter>
-    void ForEachNodeThen(Callable &&pre, CallableAfter &&post) {
         LOCK(cs_vNodes);
-        for (auto &&node : vNodes) {
-            if (NodeFullyConnected(node)) pre(node);
+        for(const CNodePtr& node : vNodes) {
+            if(NodeFullyConnected(node))
+                results.emplace_back(make_task(mThreadPool, func, node));
         }
-        post();
-    };
 
-    template <typename Callable, typename CallableAfter>
-    void ForEachNodeThen(Callable &&pre, CallableAfter &&post) const {
-        LOCK(cs_vNodes);
-        for (auto &&node : vNodes) {
-            if (NodeFullyConnected(node)) pre(node);
-        }
-        post();
+        return results;
     };
 
     // Addrman functions
@@ -303,21 +314,21 @@ private:
 
     uint64_t CalculateKeyedNetGroup(const CAddress &ad) const;
 
-    CNode *FindNode(const CNetAddr &ip);
-    CNode *FindNode(const CSubNet &subNet);
-    CNode *FindNode(const std::string &addrName);
-    CNode *FindNode(const CService &addr);
+    CNodePtr FindNode(const CNetAddr &ip);
+    CNodePtr FindNode(const CSubNet &subNet);
+    CNodePtr FindNode(const std::string &addrName);
+    CNodePtr FindNode(const CService &addr);
 
     bool AttemptToEvictConnection();
-    CNode *ConnectNode(CAddress addrConnect, const char *pszDest,
-                       bool fCountFailure);
+    CNodePtr ConnectNode(CAddress addrConnect, const char *pszDest,
+                         bool fCountFailure);
     bool IsWhitelistedRange(const CNetAddr &addr);
 
-    void DeleteNode(CNode *pnode);
+    void DeleteNode(const CNodePtr& pnode);
 
     NodeId GetNewNodeId();
 
-    size_t SocketSendData(CNode *pnode) const;
+    size_t SocketSendData(const CNodePtr& pnode) const;
     //! check is the banlist has unwritten changes
     bool BannedSetIsDirty();
     //! set the "dirty" flag for the banlist
@@ -333,7 +344,7 @@ private:
     void RecordBytesSent(uint64_t bytes);
 
     // Whether the node should be passed out in ForEach* callbacks
-    static bool NodeFullyConnected(const CNode *pnode);
+    static bool NodeFullyConnected(const CNodePtr& pnode);
 
     const Config *config;
 
@@ -368,8 +379,8 @@ private:
     CCriticalSection cs_vOneShots;
     std::vector<std::string> vAddedNodes;
     CCriticalSection cs_vAddedNodes;
-    std::vector<CNode *> vNodes;
-    std::list<CNode *> vNodesDisconnected;
+    std::vector<CNodePtr> vNodes;
+    std::list<CNodePtr> vNodesDisconnected;
     mutable CCriticalSection cs_vNodes;
     std::atomic<NodeId> nLastNodeId;
 
@@ -397,6 +408,11 @@ private:
     std::condition_variable condMsgProc;
     std::mutex mutexMsgProc;
     std::atomic<bool> flagInterruptMsgProc;
+
+    /** Transaction tracker/propagator */
+    std::shared_ptr<CTxnPropagator> mTxnPropagator {};
+
+    CThreadPool<CQueueAdaptor> mThreadPool { "ConnmanPool" };
 
     CThreadInterrupt interruptNet;
 
@@ -429,15 +445,15 @@ struct CombinerAll {
 
 // Signals for message handling
 struct CNodeSignals {
-    boost::signals2::signal<bool(const Config &, CNode *, CConnman &,
+    boost::signals2::signal<bool(const Config &, const CNodePtr& , CConnman &,
                                  std::atomic<bool> &),
                             CombinerAll>
         ProcessMessages;
-    boost::signals2::signal<bool(const Config &, CNode *, CConnman &,
+    boost::signals2::signal<bool(const Config &, const CNodePtr& , CConnman &,
                                  std::atomic<bool> &),
                             CombinerAll>
         SendMessages;
-    boost::signals2::signal<void(const Config &, CNode *, CConnman &)>
+    boost::signals2::signal<void(const Config &, const CNodePtr& , CConnman &)>
         InitializeNode;
     boost::signals2::signal<void(NodeId, bool &)> FinalizeNode;
 };
@@ -459,8 +475,8 @@ enum {
     LOCAL_MAX
 };
 
-bool IsPeerAddrLocalGood(CNode *pnode);
-void AdvertiseLocal(CNode *pnode);
+bool IsPeerAddrLocalGood(const CNodePtr& pnode);
+void AdvertiseLocal(const CNodePtr& pnode);
 void SetLimited(enum Network net, bool fLimited = true);
 bool IsLimited(enum Network net);
 bool IsLimited(const CNetAddr &addr);
@@ -517,6 +533,7 @@ public:
     double dMinPing;
     std::string addrLocal;
     CAddress addr;
+    size_t nInvQueueSize;
 };
 
 class CNetMessage {
@@ -637,7 +654,6 @@ public:
     CSemaphoreGrant grantOutbound;
     CCriticalSection cs_filter;
     CBloomFilter *pfilter;
-    std::atomic<int> nRefCount;
     const NodeId id;
 
     const uint64_t nKeyedNetGroup;
@@ -656,7 +672,6 @@ public:
     std::vector<CAddress> vAddrToSend;
     CRollingBloomFilter addrKnown;
     bool fGetAddr;
-    std::set<uint256> setKnown;
     int64_t nNextAddrSend;
     int64_t nNextLocalAddrSend;
 
@@ -727,19 +742,27 @@ private:
     CService addrLocal;
     mutable CCriticalSection cs_addrLocal;
 
+    /** List of priority sorted inventory msgs for transactions to send */
+    using InvList = CModPriQueue<CTxnSendingDetails, std::vector<CTxnSendingDetails>, CompareTxnSendingDetails>;
+    InvList mInvList { CompareTxnSendingDetails{&mempool} };
+    CCriticalSection cs_mInvList {};
+
+
 public:
     enum RECV_STATUS {RECV_OK, RECV_BAD_LENGTH, RECV_FAIL};
+
+    /** Add some new transactions to our pending inventory list */
+    void AddTxnsToInventory(const std::vector<CTxnSendingDetails>& txns);
+    /** Remove some transactions from our pending inventroy list */
+    void RemoveTxnsFromInventory(const std::vector<CTxnSendingDetails>& txns);
+    /** Fetch the next N items from our inventory */
+    std::vector<CTxnSendingDetails> FetchNInventory(size_t n);
 
     NodeId GetId() const { return id; }
 
     uint64_t GetLocalNonce() const { return nLocalHostNonce; }
 
     int GetMyStartingHeight() const { return nMyStartingHeight; }
-
-    int GetRefCount() {
-        assert(nRefCount >= 0);
-        return nRefCount;
-    }
 
     RECV_STATUS ReceiveMsgBytes(const Config &config, const char *pch, uint32_t nBytes,
                          bool &complete);
@@ -752,13 +775,6 @@ public:
     CService GetAddrLocal() const;
     //! May not be called more than once
     void SetAddrLocal(const CService &addrLocalIn);
-
-    CNode *AddRef() {
-        nRefCount++;
-        return this;
-    }
-
-    void Release() { nRefCount--; }
 
     void AddAddressKnown(const CAddress &_addr) {
         addrKnown.insert(_addr.GetKey());

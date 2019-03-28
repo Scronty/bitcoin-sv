@@ -212,9 +212,25 @@ std::string ArgsManager::GetArg(const std::string &strArg,
 
 int64_t ArgsManager::GetArg(const std::string &strArg, int64_t nDefault) {
     LOCK(cs_args);
-    if (mapArgs.count(strArg)) return atoi64(mapArgs[strArg]);
-    return nDefault;
+    int64_t returnValue(nDefault);
+	if (mapArgs.count(strArg)) 
+    {
+        const std::string& argValue (mapArgs[strArg]);
+        if ( argValue.find_first_not_of ( "\t\r\n\f ") != std::string::npos)
+        {
+            try
+            {   
+                returnValue = stoll(argValue);
+            }
+            catch (std::exception& e)
+            {   
+                PrintExceptionContinue(&e, "ArgsManager::GetArg" );
+            }
+        }
+    }
+    return returnValue;
 }
+
 
 bool ArgsManager::GetBoolArg(const std::string &strArg, bool fDefault) {
     LOCK(cs_args);

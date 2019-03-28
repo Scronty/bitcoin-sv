@@ -1721,10 +1721,6 @@ CBlockIndex *CWallet::ScanForWalletTransactions(CBlockIndex *pindexStart,
         pindex = chainActive.Next(pindex);
     }
 
-    double dProgressStart =
-        GuessVerificationProgress(chainParams.TxData(), pindex);
-    double dProgressTip =
-        GuessVerificationProgress(chainParams.TxData(), chainActive.Tip());
     while (pindex) {
         
         CBlock block;
@@ -1798,9 +1794,9 @@ bool CWalletTx::RelayWalletTransaction(CConnman *connman) {
     if (InMempool() || AcceptToMemoryPool(maxTxFee, state)) {
         LogPrintf("Relaying wtx %s\n", GetId().ToString());
         if (connman) {
-            CInv inv(MSG_TX, GetId());
-            connman->ForEachNode(
-                [&inv](CNode *pnode) { pnode->PushInventory(inv); });
+            CInv inv { MSG_TX, GetId() };
+            TxMempoolInfo txinfo { mempool.info(GetId()) };
+            connman->EnqueueTransaction( {inv, txinfo} );
             return true;
         }
     }

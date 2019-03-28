@@ -21,11 +21,15 @@ static const int64_t ORPHAN_TX_EXPIRE_INTERVAL = 5 * 60;
 /** Default number of orphan+recently-replaced txn to keep around for block
  * reconstruction */
 static const unsigned int DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN = 100;
+/** Max broadcast delay duration in milliseconds */
+static const int64_t MAX_INV_BROADCAST_DELAY = 50 * 1000;
 
 /** Register with a network node to receive its signals */
 void RegisterNodeSignals(CNodeSignals &nodeSignals);
 /** Unregister a network node */
 void UnregisterNodeSignals(CNodeSignals &nodeSignals);
+/** Set inventory broadcasting delay time in seconds*/
+bool SetInvBroadcastDelay(const int64_t& nDelayMillisecs);
 
 class PeerLogicValidation : public CValidationInterface {
 private:
@@ -60,7 +64,7 @@ bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats);
 void Misbehaving(NodeId nodeid, int howmuch, const std::string &reason);
 
 /** Process protocol messages received from a given node */
-bool ProcessMessages(const Config &config, CNode *pfrom, CConnman &connman,
+bool ProcessMessages(const Config &config, const CNodePtr& pfrom, CConnman &connman,
                      const std::atomic<bool> &interrupt);
 /**
  * Send queued protocol messages to be sent to a give node.
@@ -70,7 +74,7 @@ bool ProcessMessages(const Config &config, CNode *pfrom, CConnman &connman,
  * @param[in]   interrupt       Interrupt condition for processing threads
  * @return                      True if there is more work to be done
  */
-bool SendMessages(const Config &config, CNode *pto, CConnman &connman,
+bool SendMessages(const Config &config, const CNodePtr& pto, CConnman &connman,
                   const std::atomic<bool> &interrupt);
 
 #endif // BITCOIN_NET_PROCESSING_H

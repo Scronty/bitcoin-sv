@@ -15,6 +15,8 @@ import sys
 import tempfile
 import time
 import traceback
+from test_framework.comptool import TestManager, TestInstance, RejectResult
+from test_framework.mininode import NetworkThread
 
 from .authproxy import JSONRPCException
 from . import coverage
@@ -34,6 +36,7 @@ from .util import (
     sync_mempools,
 )
 
+from test_framework.blocktools import *
 
 class TestStatus(Enum):
     PASSED = 1
@@ -163,7 +166,7 @@ class BitcoinTestFramework():
                 import glob
                 filenames = [self.options.tmpdir + "/test_framework.log"]
                 filenames += glob.glob(self.options.tmpdir +
-                                       "/node*/regtest/debug.log")
+                                       "/node*/regtest/bitcoind.log")
                 MAX_LINES_TO_PRINT = 1000
                 for fn in filenames:
                     try:
@@ -372,7 +375,7 @@ class BitcoinTestFramework():
         ll = int(self.options.loglevel) if self.options.loglevel.isdigit(
         ) else self.options.loglevel.upper()
         ch.setLevel(ll)
-        # Format logs the same as bitcoind's debug.log with microprecision (so log files can be concatenated and sorted)
+        # Format logs the same as bitcoind's bitcoind.log with microprecision (so log files can be concatenated and sorted)
         formatter = logging.Formatter(
             fmt='%(asctime)s.%(msecs)03d000 %(name)s (%(levelname)s): %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         formatter.converter = time.gmtime
@@ -449,7 +452,7 @@ class BitcoinTestFramework():
             self.nodes = []
             self.disable_mocktime()
             for i in range(MAX_NODES):
-                os.remove(log_filename(self.options.cachedir, i, "debug.log"))
+                os.remove(log_filename(self.options.cachedir, i, "bitcoind.log"))
                 os.remove(log_filename(self.options.cachedir, i, "db.log"))
                 os.remove(log_filename(self.options.cachedir, i, "peers.dat"))
                 os.remove(log_filename(
@@ -479,6 +482,11 @@ class ComparisonTestFramework(BitcoinTestFramework):
     - 2 binaries: 1 test binary, 1 ref binary
     - n>2 binaries: 1 test binary, n-1 ref binaries"""
 
+    def __init__(self):
+        super(ComparisonTestFramework,self).__init__()
+        self.chain = ChainManager()
+        self._network_thread = None
+
     def set_test_params(self):
         self.num_nodes = 2
         self.setup_clean_chain = True
@@ -499,6 +507,34 @@ class ComparisonTestFramework(BitcoinTestFramework):
                        binary=[self.options.testbinary] +
                        [self.options.refbinary] * (self.num_nodes - 1))
         self.start_nodes()
+        self.init_network()
+
+    def restart_network(self, timeout=None):
+        self.test.clear_all_connections()
+        # If we had a network thread from eariler, make sure it's finished before reconnecting
+        if self._network_thread is not None:
+            self._network_thread.join(timeout)
+        # Reconnect
+        self.test.add_all_connections(self.nodes)
+        self._network_thread = NetworkThread()
+        self._network_thread.start()
+
+    def init_network(self):
+        # Start creating test manager which help to manage test cases
+        self.test = TestManager(self, self.options.tmpdir)
+        # (Re)start network
+        self.restart_network()
+
+    # returns a test case that asserts that the current tip was accepted
+    def accepted(self):
+        return TestInstance([[self.chain.tip, True]])
+
+    # returns a test case that asserts that the current tip was rejected
+    def rejected(self, reject=None):
+        if reject is None:
+            return TestInstance([[self.chain.tip, False]])
+        else:
+            return TestInstance([[self.chain.tip, reject]])
 
 
 class SkipTest(Exception):

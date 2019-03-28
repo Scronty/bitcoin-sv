@@ -147,8 +147,7 @@ static const unsigned int INVENTORY_BROADCAST_INTERVAL = 5;
  * Maximum number of inventory items to send per transmission.
  * Limits the impact of low-fee transaction floods.
  */
-static const unsigned int INVENTORY_BROADCAST_MAX =
-    7 * INVENTORY_BROADCAST_INTERVAL;
+static const unsigned int INVENTORY_BROADCAST_MAX_PER_MB = 7 * INVENTORY_BROADCAST_INTERVAL;
 /** Average delay between feefilter broadcasts in seconds. */
 static const unsigned int AVG_FEEFILTER_BROADCAST_INTERVAL = 10 * 60;
 /** Maximum feefilter broadcast delay after significant change. */
@@ -175,6 +174,13 @@ static const bool DEFAULT_PERMIT_BAREMULTISIG = true;
 static const bool DEFAULT_CHECKPOINTS_ENABLED = true;
 static const bool DEFAULT_TXINDEX = false;
 static const unsigned int DEFAULT_BANSCORE_THRESHOLD = 100;
+
+/* Default settings for controlling P2P reading */
+static const unsigned int DEFAULT_MIN_TIME_INTERVAL_CHECKSUM_MS = 500;
+static const unsigned int DEFAULT_INVALID_CHECKSUM_FREQUENCY = 100;
+
+static const unsigned int DEFAULT_MIN_TIME_INTERVAL_HEADER_MS = 500;
+static const unsigned int DEFAULT_INVALID_HEADER_FREQUENCY = 2000;
 
 /** Default for -persistmempool */
 static const bool DEFAULT_PERSIST_MEMPOOL = true;

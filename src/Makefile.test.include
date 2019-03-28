@@ -1,4 +1,5 @@
 # Copyright (c) 2013-2016 The Bitcoin Core developers
+# Copyright (c) 2019 The Bitcoin SV developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -63,6 +64,7 @@ BITCOIN_TESTS =\
   test/mempool_tests.cpp \
   test/merkle_tests.cpp \
   test/miner_tests.cpp \
+  test/mod_pri_queue_tests.cpp \
   test/opcode_tests.cpp \
   test/multisig_tests.cpp \
   test/net_tests.cpp \
@@ -71,6 +73,7 @@ BITCOIN_TESTS =\
   test/policyestimator_tests.cpp \
   test/pow_tests.cpp \
   test/prevector_tests.cpp \
+  test/protocol_tests.cpp \
   test/raii_event_tests.cpp \
   test/random_tests.cpp \
   test/reverselock_tests.cpp \
@@ -96,6 +99,7 @@ BITCOIN_TESTS =\
   test/test_bitcoin_main.cpp \
   test/testutil.cpp \
   test/testutil.h \
+  test/threadpool_tests.cpp \
   test/timedata_tests.cpp \
   test/transaction_tests.cpp \
   test/txvalidationcache_tests.cpp \

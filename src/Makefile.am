@@ -125,6 +125,7 @@ BITCOIN_CORE_H = \
   memusage.h \
   merkleblock.h \
   miner.h \
+  mod_pri_queue.h \
   net.h \
   net_processing.h \
   netaddress.h \
@@ -158,12 +159,18 @@ BITCOIN_CORE_H = \
   support/events.h \
   support/lockedpool.h \
   sync.h \
+  task.h \
+  task_helpers.h \
+  threadpool.h \
+  threadpoolT.h \
   threadsafety.h \
   threadinterrupt.h \
   timedata.h \
   torcontrol.h \
   txdb.h \
   txmempool.h \
+  txn_propagator.h \
+  txn_sending_details.h \
   ui_interface.h \
   undo.h \
   util.h \
@@ -231,6 +238,7 @@ libbitcoin_server_a_SOURCES = \
   torcontrol.cpp \
   txdb.cpp \
   txmempool.cpp \
+  txn_propagator.cpp \
   ui_interface.cpp \
   validation.cpp \
   validationinterface.cpp \
@@ -516,7 +524,9 @@ CLEANFILES += consensus/*.gcda consensus/*.gcno
 CLEANFILES += crypto/*.gcda crypto/*.gcno
 CLEANFILES += policy/*.gcda policy/*.gcno
 CLEANFILES += primitives/*.gcda primitives/*.gcno
+CLEANFILES += rpc/*.gcda rpc/*.gcno
 CLEANFILES += script/*.gcda script/*.gcno
+CLEANFILES += seeder/*.gcda seeder/*.gcno
 CLEANFILES += support/*.gcda support/*.gcno
 CLEANFILES += univalue/*.gcda univalue/*.gcno
 CLEANFILES += wallet/*.gcda wallet/*.gcno

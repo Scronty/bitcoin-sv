@@ -191,11 +191,18 @@ enum opcodetype {
 
 const char *GetOpName(opcodetype opcode);
 
-class scriptnum_error : public std::runtime_error {
+class scriptnum_overflow_error : public std::overflow_error {
 public:
-    explicit scriptnum_error(const std::string &str)
+    explicit scriptnum_overflow_error(const std::string &str)
+        : std::overflow_error(str) {}
+};
+
+class scriptnum_minencode_error : public std::runtime_error {
+public:
+    explicit scriptnum_minencode_error(const std::string &str)
         : std::runtime_error(str) {}
 };
+
 
 class CScriptNum {
     /**
@@ -215,10 +222,10 @@ public:
     explicit CScriptNum(const std::vector<uint8_t> &vch, bool fRequireMinimal,
                         const size_t nMaxNumSize = MAXIMUM_ELEMENT_SIZE) {
         if (vch.size() > nMaxNumSize) {
-            throw scriptnum_error("script number overflow");
+            throw scriptnum_overflow_error("script number overflow");
         }
         if (fRequireMinimal && !IsMinimallyEncoded(vch, nMaxNumSize)) {
-            throw scriptnum_error("non-minimally encoded script number");
+            throw scriptnum_minencode_error("non-minimally encoded script number");
         }
         m_value = set_vch(vch);
     }
@@ -355,7 +362,7 @@ public:
 
         std::vector<uint8_t> result;
         const bool neg = value < 0;
-        uint64_t absvalue = neg ? -value : value;
+        uint64_t absvalue = neg ? -(static_cast<uint64_t> (value) ): value;
 
         while (absvalue) {
             result.push_back(absvalue & 0xff);

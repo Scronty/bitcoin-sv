@@ -8,6 +8,9 @@
 
 #include "compat/endian.h"
 
+#include <iostream>
+#include <string>
+#include <sstream>
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -361,7 +364,7 @@ template <typename Stream, typename I> I ReadVarInt(Stream &is) {
         uint8_t chData = ser_readdata8(is);
         n = (n << 7) | (chData & 0x7F);
         if ((chData & 0x80) == 0) {
-            return n;
+                return n;     
         }
         n++;
     }
@@ -636,7 +639,7 @@ void Unserialize_impl(Stream &is, prevector<N, T> &v, const V &) {
     size_t i = 0;
     size_t nMid = 0;
     while (nMid < nSize) {
-        nMid += 5000000 / sizeof(T);
+        nMid += std::min(nSize, size_t(1 + 4999999 / sizeof(T)));
         if (nMid > nSize) {
             nMid = nSize;
         }
@@ -690,6 +693,7 @@ void Unserialize_impl(Stream &is, std::vector<T, A> &v, const uint8_t &) {
     }
 }
 
+
 template <typename Stream, typename T, typename A, typename V>
 void Unserialize_impl(Stream &is, std::vector<T, A> &v, const V &) {
     v.clear();
@@ -697,7 +701,7 @@ void Unserialize_impl(Stream &is, std::vector<T, A> &v, const V &) {
     size_t i = 0;
     size_t nMid = 0;
     while (nMid < nSize) {
-        nMid += 5000000 / sizeof(T);
+        nMid += std::min(nSize, size_t(1 + 4999999 / sizeof(T)));
         if (nMid > nSize) {
             nMid = nSize;
         }
@@ -707,6 +711,7 @@ void Unserialize_impl(Stream &is, std::vector<T, A> &v, const V &) {
         }
     }
 }
+
 
 template <typename Stream, typename T, typename A>
 inline void Unserialize(Stream &is, std::vector<T, A> &v) {

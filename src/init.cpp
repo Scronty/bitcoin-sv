@@ -518,6 +518,11 @@ std::string HelpMessage(HelpMessageMode mode) {
                     "perspective of time may be influenced by peers forward or "
                     "backward by this amount. (default: %u seconds)"),
                   DEFAULT_MAX_TIME_ADJUSTMENT));
+    strUsage += HelpMessageOpt(
+        "-broadcastdelay=<n>",
+        strprintf(
+            _("Set inventory broadcast delay duration in millisecond(min: %d, max: %d)"),
+            0,MAX_INV_BROADCAST_DELAY));
     strUsage +=
         HelpMessageOpt("-onion=<ip:port>",
                        strprintf(_("Use separate SOCKS5 proxy to reach peers "
@@ -902,6 +907,25 @@ std::string HelpMessage(HelpMessageMode mode) {
             strprintf("Timeout during HTTP requests (default: %d)",
                       DEFAULT_HTTP_SERVER_TIMEOUT));
     }
+     strUsage += HelpMessageOpt(
+        "-invalidcsinterval=<n>",
+         strprintf("Set the time limit on the reception of invalid message checksums from a single node in milliseconds (default: %dms)",
+            DEFAULT_MIN_TIME_INTERVAL_CHECKSUM_MS)) ;
+
+         strUsage += HelpMessageOpt(
+        "-invalidcsfreq=<n>",
+         strprintf("Set the limit on the number of invalid checksums received over a given time period from a single node  (default: %d)",
+            DEFAULT_INVALID_CHECKSUM_FREQUENCY)) ;
+
+    strUsage += HelpMessageOpt(
+        "-invalidheaderinterval=<n>",
+         strprintf("Set the time limit on the transmission of message headers from the local node in milliseconds (default: %dms)",
+            DEFAULT_MIN_TIME_INTERVAL_HEADER_MS)) ;
+
+    strUsage += HelpMessageOpt(
+        "-invalidheaderfreq=<n>",
+         strprintf("Set the limit on the number of message headers transmitted from the local node over a given time period (default: %d)",
+           DEFAULT_INVALID_HEADER_FREQUENCY)) ;
 
     return strUsage;
 }
@@ -1798,7 +1822,7 @@ bool AppInitMain(Config &config, boost::thread_group &threadGroup,
         }
     }
 
-    int64_t nStart;
+    int64_t nStart=0;
 
 // Step 5: verify wallet database integrity
 #ifdef ENABLE_WALLET
@@ -1820,6 +1844,12 @@ bool AppInitMain(Config &config, boost::thread_group &threadGroup,
     CConnman &connman = *g_connman;
 
     peerLogic.reset(new PeerLogicValidation(&connman));
+    if (gArgs.IsArgSet("-broadcastdelay")) {
+        const int64_t nDelayMillisecs = gArgs.GetArg("-broadcastdelay", -1);
+        if(!SetInvBroadcastDelay(nDelayMillisecs)){
+            return InitError(strprintf(_("Error setting broadcastdelay=%d"), nDelayMillisecs));
+        }
+    }
     RegisterValidationInterface(peerLogic.get());
     RegisterNodeSignals(GetNodeSignals());
 
